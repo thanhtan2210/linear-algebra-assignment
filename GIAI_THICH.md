@@ -1,4 +1,4 @@
-# Giải thích bài toán cho người chưa biết gì
+# Giải thích bài toán
 
 Tài liệu này kể lại bài tập lớn bằng lời thường, không cần biết trước về ma trận hay lập trình. Phần kỹ thuật đầy đủ (công thức, bảng số) nằm trong [README.md](README.md).
 
