@@ -14,20 +14,17 @@ DO_PHAN_GIAI = 128;         % ảnh camera 128 x 128 điểm ảnh
 rng(2026);
 
 fprintf('PHÂN TÍCH NHIỆT ĐỘ TRÊN TẤM TẢN NHIỆT CPU BẰNG CHUẨN MA TRẬN\n');
-ts = thong_so();
-if ~batchStartupOptionUsed
-    fprintf('Nhập thông số (Enter để giữ giá trị mặc định):\n');
-    v = input(sprintf('  Số điểm lưới mỗi chiều [%d]: ', ts.N));               if ~isempty(v), ts.N = v; end
-    v = input(sprintf('  Nhiệt độ CPU (°C) [%g]: ', ts.T_CPU));                if ~isempty(v), ts.T_CPU = v; end
-    v = input(sprintf('  Hệ số toả nhiệt của quạt (W/m^2.K) [%g]: ', ts.h));   if ~isempty(v), ts.h = v; end
-end
+ts = nhap_thong_so(thong_so());   % mặc định / tình huống mẫu / trả lời từng câu (Phần 5)
 N = ts.N;
 
 %% ============================ BƯỚC 1 ============================
 tieu_de('BƯỚC 1 - LẬP MÔ HÌNH VÀ TÍNH CHUẨN CỦA MA TRẬN A  (mục 3.3, 4.1)');
 [A, b, c] = lap_he(ts);
-fprintf('  Tấm nhôm %g x %g cm, dày %g mm, T_CPU = %g°C, T_phòng = %g°C, h = %g W/m^2.K\n', ...
-    ts.L*100, ts.L*100, ts.t*1000, ts.T_CPU, ts.T_inf, ts.h);
+ds_cau = cau_hoi();
+vat_lieu = lower(ten_lua_chon(ds_cau(1), ts.k));
+if isempty(vat_lieu), vat_lieu = 'vật liệu'; end
+fprintf(['  Tấm %s %g x %g cm, dày %g mm, k = %g W/m.K, T_CPU = %g°C, T_phòng = %g°C,' ...
+    ' h = %g W/m^2.K\n'], vat_lieu, ts.L*100, ts.L*100, ts.t*1000, ts.k, ts.T_CPU, ts.T_inf, ts.h);
 fprintf('  m^2 = 2h/(k.t) = %g 1/m^2, lưới %dx%d -> A cỡ %dx%d, c = m^2.dx^2 = %.5f\n', ...
     he_so_m2(ts), N, N, N^2, N^2, c);
 
@@ -167,6 +164,9 @@ fprintf('     Trường nhiệt trơn nên có hạng thấp; nhiễu trải đ�
 
 %% ============================ HÌNH VẼ ============================
 Lcm = ts.L * 100;
+% Hình 0: sơ đồ đề bài
+ve_de_bai(ts);
+
 % Hình 1: bản đồ nhiệt
 T_day_du = ts.T_inf * ones(N + 2);
 T_day_du(2:end-1, 2:end-1) = T_luoi;
@@ -435,8 +435,100 @@ function dinh_dang_truc(ax)
     if ~isempty(lg), lg.Box = 'off'; end
 end
 
-function luu_hinh(fig, ten_file)
+function ve_de_bai(ts)
+    % Hình 0: sơ đồ đề bài - tấm nhìn từ trên xuống và nhìn ngang.
+    L = ts.L * 100;
+    N = ts.N;
+    ds = cau_hoi();
+    vat_lieu = lower(ten_lua_chon(ds(1), ts.k));
+    if isempty(vat_lieu), vat_lieu = 'kim loại'; end
+    nong = mau_ve('cam'); lanh = mau_ve('xanh'); phu = mau_ve('chu_phu');
+    chu = [11 11 11]/255; tam = [217 213 204]/255; cpu = [58 57 54]/255;
+    giua = {'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle'};
+    fig = figure('Position', [50 100 1300 540], 'Color', [252 252 251]/255);
+
+    % (a) Nhìn từ trên xuống: cạnh dưới áp vào CPU, ba cạnh kia ở nhiệt độ phòng
+    ax = axes(fig, 'Position', [0.02 0.03 0.40 0.86]); hold(ax, 'on');
+    rectangle(ax, 'Position', [0 0 L L], 'FaceColor', tam, 'EdgeColor', 'none');
+    g = linspace(0, L, 10); g = g(2:end-1);
+    [X, Y] = meshgrid(g, g);
+    plot(ax, X(:), Y(:), 'o', 'MarkerSize', 3, 'MarkerFaceColor', phu, 'MarkerEdgeColor', phu);
+    text(ax, L/2, L/2, {'Nhiệt độ tại mỗi', 'điểm lưới = ?'}, giua{:}, 'FontSize', 12, 'Color', chu, ...
+        'BackgroundColor', 'w', 'EdgeColor', mau_ve('truc'), 'Margin', 6);
+    plot(ax, [0 L], [0 0], 'Color', nong, 'LineWidth', 6);
+    plot(ax, [0 0 L L], [0 L L 0], 'Color', lanh, 'LineWidth', 4);
+    rectangle(ax, 'Position', [0 -0.16*L L 0.16*L], 'FaceColor', cpu, 'EdgeColor', 'none');
+    text(ax, L/2, -0.08*L, sprintf('CPU  %g°C', ts.T_CPU), giua{:}, 'Color', 'w', 'FontSize', 12, 'FontWeight', 'bold');
+    text(ax, L/2, 0.05*L, sprintf('cạnh dưới: %g°C', ts.T_CPU), 'HorizontalAlignment', 'center', ...
+        'VerticalAlignment', 'bottom', 'Color', nong, 'FontSize', 10);
+    text(ax, L/2, 0.95*L, sprintf('%g°C (nhiệt độ phòng)', ts.T_inf), 'HorizontalAlignment', 'center', ...
+        'VerticalAlignment', 'top', 'Color', lanh, 'FontSize', 10);
+    text(ax, 0.05*L, L/2, sprintf('%g°C', ts.T_inf), giua{:}, 'Rotation', 90, 'Color', lanh, 'FontSize', 10);
+    text(ax, 0.95*L, L/2, sprintf('%g°C', ts.T_inf), giua{:}, 'Rotation', -90, 'Color', lanh, 'FontSize', 10);
+    mui_ten(ax, [0 L], [1.07 1.07]*L, phu, 1, 0.03*L, true);
+    text(ax, L/2, 1.09*L, sprintf('%g cm', L), 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
+        'Color', phu, 'FontSize', 11);
+    mui_ten(ax, [-0.07 -0.07]*L, [0 L], phu, 1, 0.03*L, true);
+    text(ax, -0.09*L, L/2, sprintf('%g cm', L), 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
+        'Rotation', 90, 'Color', phu, 'FontSize', 11);
+    axis(ax, 'equal', 'off');
+    xlim(ax, [-0.2 1.05]*L); ylim(ax, [-0.2 1.2]*L);
+    title(ax, sprintf('(a) Nhìn từ trên xuống: tấm %s vuông', vat_lieu), 'Color', chu, ...
+        'FontWeight', 'normal', 'FontSize', 13);
+
+    % (b) Nhìn ngang: nhiệt lan dọc tấm (k) và thoát ra hai mặt nhờ quạt (h); độ dày vẽ phóng to
+    ax = axes(fig, 'Position', [0.45 0.03 0.54 0.86]); hold(ax, 'on');
+    rectangle(ax, 'Position', [-1.6 -1.1 1.6 2.8], 'FaceColor', cpu, 'EdgeColor', 'none');
+    text(ax, -0.8, 0.3, 'CPU', giua{:}, 'Rotation', 90, 'Color', 'w', 'FontWeight', 'bold', 'FontSize', 11);
+    rectangle(ax, 'Position', [0 0 10 0.6], 'FaceColor', tam, 'EdgeColor', mau_ve('truc'));
+    plot(ax, [0 0], [0 0.6], 'Color', nong, 'LineWidth', 5);
+    plot(ax, [10 10], [0 0.6], 'Color', lanh, 'LineWidth', 5);
+    mui_ten(ax, [0.4 9.3], [0.3 0.3], nong, 2, 0.45, false);
+    for x = [2 4 6 8]
+        mui_ten(ax, [x x], [0.75 1.9], lanh, 1.8, 0.3, false);
+        mui_ten(ax, [x x], [-0.15 -1.3], lanh, 1.8, 0.3, false);
+    end
+    text(ax, 5, 2.1, {sprintf('Quạt thổi hai mặt tấm: nhiệt thoát ra không khí (%g°C)', ts.T_inf), ...
+        sprintf('hệ số toả nhiệt h = %g W/m^2.K', ts.h)}, 'HorizontalAlignment', 'center', ...
+        'VerticalAlignment', 'bottom', 'Color', lanh, 'FontSize', 10);
+    text(ax, 5, -1.5, {sprintf('Nhiệt từ CPU (%g°C) lan dọc tấm', ts.T_CPU), ...
+        sprintf('hệ số dẫn nhiệt k = %g W/m.K', ts.k)}, 'HorizontalAlignment', 'center', ...
+        'VerticalAlignment', 'top', 'Color', nong, 'FontSize', 10);
+    text(ax, 10.3, 0.3, {sprintf('dày %g mm', ts.t*1000), '(vẽ phóng to)', sprintf('đầu xa: %g°C', ts.T_inf)}, ...
+        'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'Color', phu, 'FontSize', 9);
+    text(ax, -1.6, -3.6, { ...
+        sprintf('Biết:  tấm %s %g x %g cm, dày %g mm, k = %g W/m.K, h = %g W/m^2.K,', ...
+                vat_lieu, L, L, ts.t*1000, ts.k, ts.h), ...
+        sprintf('          CPU %g°C, phòng %g°C', ts.T_CPU, ts.T_inf), ...
+        sprintf('Tìm:  nhiệt độ tại %d x %d = %d điểm lưới trên tấm', N, N, N^2), ...
+        sprintf('  =>   hệ %d phương trình  A·θ = b  (A cỡ %d x %d)', N^2, N^2, N^2)}, ...
+        'HorizontalAlignment', 'left', 'VerticalAlignment', 'top', 'Color', chu, 'FontSize', 10.5, ...
+        'BackgroundColor', 'w', 'EdgeColor', mau_ve('truc'), 'Margin', 8);
+    axis(ax, 'equal', 'off');
+    xlim(ax, [-2 13.2]); ylim(ax, [-7.4 3.2]);
+    title(ax, '(b) Nhìn ngang: nhiệt vào từ CPU, thoát ra hai mặt', 'Color', chu, ...
+        'FontWeight', 'normal', 'FontSize', 13);
+    luu_hinh(fig, 'hinh0_de_bai_matlab.png', true);
+end
+
+function mui_ten(ax, x, y, mau, lw, dau, hai_dau)
+    % Mũi tên từ (x(1), y(1)) tới (x(2), y(2)); 'dau' là chiều dài đầu mũi (đơn vị dữ liệu).
+    plot(ax, x, y, 'Color', mau, 'LineWidth', lw);
+    dau_mui_ten(ax, [x(1) y(1)], [x(2) y(2)], mau, dau);
+    if hai_dau, dau_mui_ten(ax, [x(2) y(2)], [x(1) y(1)], mau, dau); end
+end
+
+function dau_mui_ten(ax, goc, ngon, mau, dau)
+    u = (ngon - goc) / norm(ngon - goc);       % hướng mũi tên
+    v = [-u(2) u(1)];                          % hướng vuông góc
+    day = ngon - dau * u;
+    p = [ngon; day + 0.45 * dau * v; day - 0.45 * dau * v];
+    patch(ax, p(:, 1), p(:, 2), mau, 'EdgeColor', 'none');
+end
+
+function luu_hinh(fig, ten_file, giu_mau_chu)
     % Lưu hình vào thư mục ket_qua (cạnh thư mục matlab).
+    % giu_mau_chu = true: giữ màu chữ đã đặt riêng (hình sơ đồ), không đổi hết sang màu đen.
     thu_muc = fullfile(fileparts(mfilename('fullpath')), '..', 'ket_qua');
     if ~exist(thu_muc, 'dir'), mkdir(thu_muc); end
     duong_dan = fullfile(thu_muc, ten_file);
@@ -445,7 +537,9 @@ function luu_hinh(fig, ten_file)
     catch
         % bản MATLAB cũ không có hàm theme, vốn đã dùng giao diện sáng
     end
-    set(findall(fig, 'Type', 'text'), 'Color', [11 11 11]/255);
+    if nargin < 3 || ~giu_mau_chu
+        set(findall(fig, 'Type', 'text'), 'Color', [11 11 11]/255);
+    end
     exportgraphics(fig, duong_dan, 'Resolution', 150);
     fprintf('  -> Đã lưu hình: %s\n', duong_dan);
 end
@@ -459,4 +553,207 @@ function [X, Y] = toa_do_nut(ts, N)
 % Toạ độ các điểm lưới trong; X, Y cỡ N x N với hàng = y, cột = x
 g = (1:N) * ts.L / (N + 1);
 [X, Y] = meshgrid(g, g);
+end
+
+%% ====================== PHẦN 5. NHẬP THÔNG SỐ ======================
+% Người dùng không cần biết số liệu, mỗi câu hỏi nhận nhiều kiểu trả lời:
+%   Enter              -> giữ giá trị mặc định
+%   a / b / c          -> chọn một lựa chọn có sẵn
+%   tên lựa chọn       -> giống chọn chữ cái, gõ có dấu hay không dấu đều được (nhôm, nhom)
+%   một con số         -> tự nhập giá trị, được kèm đơn vị (10 cm, 1mm, 80 độ) và dùng dấu phẩy (0,5)
+%   ?                  -> xem giải thích
+% Giá trị lựa chọn và khoảng hợp lý ghi theo đơn vị hiển thị; doi_so(1) đổi về đơn vị của thong_so().
+
+function ds = cau_hoi()
+    do_c = {{'', 'c', '°c', 'do', 'doc'}, [1 1 1 1 1]};
+    ds = [ ...
+        tao_cau('k', 'Vật liệu', 'Tấm tản nhiệt làm bằng gì?', 'hệ số dẫn nhiệt k', 'W/m.K', ...
+            {{'', 'w/m.k', 'w/mk'}, [1 1 1]}, [1 500], ...
+            {'Nhôm', 'Đồng', 'Thép'}, [200 400 50], {{'al'}, {'cu'}, {'sat'}}, ...
+            ['Vật liệu quyết định nhiệt lan trong tấm nhanh hay chậm. Đồng dẫn nhiệt tốt nhất,' ...
+             ' thép kém nhất. Tản nhiệt CPU thường làm bằng nhôm.']), ...
+        tao_cau('h', 'Làm mát', 'Tản nhiệt được làm mát thế nào?', 'hệ số toả nhiệt h', 'W/m^2.K', ...
+            {{'', 'w/m2.k', 'w/m^2.k', 'w/m².k'}, [1 1 1 1]}, [1 2000], ...
+            {'Không quạt', 'Quạt thường', 'Quạt mạnh'}, [10 100 250], {{'khong'}, {'quat', 'thuong'}, {'manh'}}, ...
+            ['Quạt thổi càng mạnh thì tấm mất nhiệt ra không khí càng nhanh. Không có quạt,' ...
+             ' nhiệt chỉ thoát nhờ không khí tự lưu thông nên rất chậm.']), ...
+        tao_cau('T_inf', 'Nhiệt độ phòng', 'Phòng đặt máy nóng hay lạnh?', 'nhiệt độ phòng', '°C', ...
+            do_c, [0 50], ...
+            {'Phòng máy lạnh', 'Bình thường', 'Trời nóng'}, [20 25 35], {{'lanh', 'may lanh'}, {'thuong'}, {'nong'}}, ...
+            'Nhiệt độ không khí quanh máy. Ba cạnh tấm xa CPU được coi là bằng nhiệt độ này.'), ...
+        tao_cau('T_CPU', 'Nhiệt độ CPU', 'CPU đang chạy nặng cỡ nào?', 'nhiệt độ CPU', '°C', ...
+            do_c, [1 150], ...
+            {'Máy rảnh', 'Tải nặng', 'Quá tải'}, [45 80 95], {{'ranh'}, {'nang', 'game'}, {'qua tai'}}, ...
+            ['Nhiệt độ của cạnh tấm áp vào CPU. Máy để không khoảng 40-50°C, chơi game hay' ...
+             ' tính toán nặng khoảng 80°C, gần 100°C là CPU sắp tự giảm tốc.']), ...
+        tao_cau('L', 'Cạnh tấm', 'Tấm tản nhiệt to cỡ nào?', 'cạnh tấm', 'cm', ...
+            {{'', 'cm', 'mm', 'm'}, [0.01 0.01 0.001 1]}, [1 50], ...
+            {'Nhỏ', 'Vừa', 'Lớn'}, [5 10 15], {{'be'}, {'trung binh'}, {'to'}}, ...
+            'Tấm hình vuông, đây là độ dài một cạnh. Tản nhiệt CPU máy bàn thường 8-12 cm.'), ...
+        tao_cau('t', 'Độ dày', 'Tấm dày hay mỏng?', 'độ dày', 'mm', ...
+            {{'', 'mm', 'cm', 'm'}, [0.001 0.001 0.01 1]}, [0.1 10], ...
+            {'Mỏng', 'Vừa', 'Dày'}, [0.5 1 2], {{}, {'trung binh'}, {}}, ...
+            'Tấm càng dày thì nhiệt càng dễ lan xa khỏi CPU trước khi thoát ra không khí.'), ...
+        tao_cau('N', 'Lưới tính', 'Muốn tính chi tiết đến mức nào?', 'số điểm lưới mỗi chiều N', 'điểm', ...
+            {{'', 'diem'}, [1 1]}, [5 40], ...
+            {'Thô', 'Vừa', 'Mịn'}, [10 20 40], {{'nhanh'}, {'trung binh'}, {'chi tiet', 'cham'}}, ...
+            ['Chương trình chia tấm thành lưới N x N điểm và tính nhiệt độ tại mỗi điểm.' ...
+             ' Lưới càng mịn thì kết quả càng sát thực tế nhưng chạy càng lâu (mịn mất cỡ 1 phút).'])];
+end
+
+function c = tao_cau(khoa, nhan, hoi, ten_so, don_vi, doi, khoang, ten_lc, so_lc, bi_danh, giai_thich)
+    c = struct('khoa', khoa, 'nhan', nhan, 'hoi', hoi, 'ten_so', ten_so, 'don_vi', don_vi, ...
+        'doi_ten', {doi{1}}, 'doi_so', doi{2}, 'khoang', khoang, 'ten_lc', {ten_lc}, ...
+        'so_lc', so_lc, 'bi_danh', {bi_danh}, 'giai_thich', giai_thich);
+end
+
+function ds = tinh_huong()
+    ds = struct('mo_ta', {'Máy văn phòng: tản nhôm không quạt, CPU 45°C', ...
+                          'Máy chơi game: tản nhôm có quạt, CPU 80°C (mặc định)', ...
+                          'Máy trạm: tản đồng quạt mạnh, CPU 95°C, phòng 35°C'}, ...
+                'bi_danh', {{'van phong'}, {'game'}, {'may tram'}}, ...
+                'thay_doi', {struct('k', 200, 'h', 10, 'T_CPU', 45), struct(), ...
+                             struct('k', 400, 'h', 250, 'T_CPU', 95, 'T_inf', 35)});
+end
+
+function s = hoi(loi_nhac)
+    % Đọc một dòng; khi chạy -batch (không có bàn phím) thì coi như bấm Enter.
+    if batchStartupOptionUsed
+        s = '';
+    else
+        s = strtrim(input(loi_nhac, 's'));
+    end
+end
+
+function s = bo_dau(s)
+    % Chữ thường, bỏ dấu tiếng Việt, gộp khoảng trắng: ' Đồng ' -> 'dong'.
+    s = lower(strtrim(s));
+    nhom = {'aàáạảãâầấậẩẫăằắặẳẵ', 'eèéẹẻẽêềếệểễ', 'iìíịỉĩ', 'oòóọỏõôồốộổỗơờớợởỡ', ...
+            'uùúụủũưừứựửữ', 'yỳýỵỷỹ', 'dđĐ'};
+    for i = 1:numel(nhom)
+        for ch = nhom{i}(2:end)
+            s(s == ch) = nhom{i}(1);
+        end
+    end
+    s = regexprep(s, '\s+', ' ');
+end
+
+function ten = ten_lua_chon(cau, gia_tri)
+    % Tên lựa chọn có sẵn ứng với giá trị (đơn vị thong_so()), '' nếu là giá trị tự nhập.
+    i = find(abs(cau.so_lc - gia_tri / cau.doi_so(1)) < 1e-9 * max(1, abs(cau.so_lc)), 1);
+    if isempty(i), ten = ''; else, ten = cau.ten_lc{i}; end
+end
+
+function gia_tri = hoi_mot_cau(cau, gia_tri)
+    he_so = cau.doi_so(1);
+    chu = 'abc';
+    fprintf('\n  %s\n', cau.hoi);
+    for i = 1:3
+        fprintf('     %s) %-16s(%s = %g %s)\n', chu(i), cau.ten_lc{i}, cau.ten_so, cau.so_lc(i), cau.don_vi);
+    end
+    fprintf('     Hoặc gõ thẳng %s theo %s.  Enter = giữ %g %s,  ? = giải thích\n', ...
+        cau.ten_so, cau.don_vi, gia_tri / he_so, cau.don_vi);
+    while true
+        tra_loi = bo_dau(hoi('     > '));
+        if isempty(tra_loi), return; end
+        if strcmp(tra_loi, '?')
+            fprintf('     %s\n', cau.giai_thich);
+            continue
+        end
+        for i = 1:3
+            if any(strcmp(tra_loi, [{chu(i), bo_dau(cau.ten_lc{i})}, cau.bi_danh{i}]))
+                fprintf('     -> %s: %s = %g %s\n', cau.ten_lc{i}, cau.ten_so, cau.so_lc(i), cau.don_vi);
+                gia_tri = cau.so_lc(i) * he_so;
+                return
+            end
+        end
+        khop = regexp(tra_loi, '^([+-]?\d+(?:[.,]\d+)?)\s*(.*)$', 'tokens', 'once');
+        if isempty(khop)
+            fprintf('     Chưa hiểu câu trả lời. Gõ a, b, c, tên lựa chọn, một con số, hoặc ? để xem giải thích.\n');
+            continue
+        end
+        don_vi = strrep(khop{2}, ' ', '');
+        if isempty(don_vi), don_vi = ''; end
+        j = find(strcmp(don_vi, cau.doi_ten), 1);
+        if isempty(j)
+            fprintf('     Không nhận ra đơn vị ''%s''. Dùng: %s (hoặc bỏ trống = %s)\n', ...
+                khop{2}, strjoin(cau.doi_ten(2:end), ', '), cau.don_vi);
+            continue
+        end
+        so = str2double(strrep(khop{1}, ',', '.')) * cau.doi_so(j) / he_so;   % theo đơn vị hiển thị
+        if so < cau.khoang(1) || so > cau.khoang(2)
+            fprintf('     %g %s nằm ngoài khoảng hợp lý %g - %g %s. Nhập lại.\n', ...
+                so, cau.don_vi, cau.khoang(1), cau.khoang(2), cau.don_vi);
+            continue
+        end
+        if strcmp(cau.khoa, 'N') && so ~= round(so)
+            fprintf('     Cần một số nguyên. Nhập lại.\n');
+            continue
+        end
+        fprintf('     -> %s = %g %s\n', cau.ten_so, so, cau.don_vi);
+        gia_tri = so * he_so;
+        return
+    end
+end
+
+function ts = hoi_tung_cau(ts)
+    ds = cau_hoi();
+    for cau = ds
+        ts.(cau.khoa) = hoi_mot_cau(cau, ts.(cau.khoa));
+        while strcmp(cau.khoa, 'T_CPU') && ts.T_CPU <= ts.T_inf
+            fprintf('     CPU phải nóng hơn phòng (%g°C) thì mới có nhiệt cần tản. Chọn lại.\n', ts.T_inf);
+            ts.T_CPU = hoi_mot_cau(cau, ts.T_CPU);
+        end
+    end
+end
+
+function ts = chon_tinh_huong(ts)
+    ds = tinh_huong();
+    chu = 'abc';
+    fprintf('\n  Chọn tình huống (gõ a, b, c hoặc tên; Enter = b):\n');
+    for i = 1:3, fprintf('     %s) %s\n', chu(i), ds(i).mo_ta); end
+    while true
+        tra_loi = bo_dau(hoi('     > '));
+        if isempty(tra_loi), tra_loi = 'b'; end
+        for i = 1:3
+            if strcmp(tra_loi, chu(i)) || any(strcmp(tra_loi, ds(i).bi_danh))
+                fprintf('     -> %s\n', ds(i).mo_ta);
+                for ten = fieldnames(ds(i).thay_doi)'
+                    ts.(ten{1}) = ds(i).thay_doi.(ten{1});
+                end
+                return
+            end
+        end
+        fprintf('     Chưa hiểu câu trả lời. Gõ a, b hoặc c.\n');
+    end
+end
+
+function in_tom_tat(ts)
+    fprintf('\n  Thông số sẽ dùng:\n');
+    for cau = cau_hoi()
+        ten = ten_lua_chon(cau, ts.(cau.khoa));
+        if ~isempty(ten), ten = sprintf('  (%s)', ten); end
+        fprintf('     %-16s: %g %s%s\n', cau.nhan, ts.(cau.khoa) / cau.doi_so(1), cau.don_vi, ten);
+    end
+end
+
+function ts = nhap_thong_so(ts)
+    fprintf('Chọn cách nhập thông số:\n');
+    fprintf('  1) Chạy ngay với thông số mặc định      (Enter)\n');
+    fprintf('  2) Chọn nhanh một tình huống mẫu        (không cần biết số liệu)\n');
+    fprintf('  3) Trả lời từng câu hỏi                 (chọn a/b/c, gõ tên, hoặc gõ số kèm đơn vị)\n');
+    while true
+        cach = hoi('  > ');
+        if isempty(cach), cach = '1'; end
+        if any(strcmp(cach, {'1', '2', '3'})), break; end
+        fprintf('  Gõ 1, 2 hoặc 3 (hoặc Enter để chạy với thông số mặc định).\n');
+    end
+    if strcmp(cach, '1'), return; end
+    while true
+        if strcmp(cach, '2'), ts = chon_tinh_huong(ts); else, ts = hoi_tung_cau(ts); end
+        in_tom_tat(ts);
+        fprintf('\n');
+        if ~strcmp(bo_dau(hoi('  Enter = bắt đầu tính,  s = sửa lại từng câu: ')), 's'), return; end
+        cach = '3';
+    end
 end

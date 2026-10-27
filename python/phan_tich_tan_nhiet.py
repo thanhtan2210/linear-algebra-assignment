@@ -13,11 +13,14 @@ Cấu trúc file:
   Phần 3. Cấu hình đồ thị
   Phần 4. Chương trình chính (4 bước + vẽ hình)
 
-Chạy:  python phan_tich_tan_nhiet.py      (Enter để dùng thông số mặc định)
+Chạy:  python phan_tich_tan_nhiet.py      (Enter để dùng thông số mặc định; có thể chọn
+       tình huống mẫu hoặc trả lời từng câu hỏi bằng a/b/c, tên, hay con số kèm đơn vị)
 Cần:   pip install numpy matplotlib
 """
 import os
+import re
 import sys
+import unicodedata
 import numpy as np
 import matplotlib
 
@@ -292,19 +295,180 @@ def tieu_de(chu):
     print("\n" + "=" * 90 + f"\n{chu}\n" + "=" * 90)
 
 
+# ---------------------------------------------------------------------------------------
+# Nhập thông số. Người dùng không cần biết số liệu, mỗi câu hỏi nhận nhiều kiểu trả lời:
+#   Enter              -> giữ giá trị mặc định
+#   a / b / c          -> chọn một lựa chọn có sẵn
+#   tên lựa chọn       -> giống chọn chữ cái, gõ có dấu hay không dấu đều được (nhôm, nhom)
+#   một con số         -> tự nhập giá trị, được kèm đơn vị (10 cm, 1mm, 80 độ) và dùng dấu phẩy (0,5)
+#   ?                  -> xem giải thích
+# Giá trị lựa chọn và khoảng hợp lý ghi theo đơn vị hiển thị; doi[""] đổi về đơn vị trong THONG_SO.
+# ---------------------------------------------------------------------------------------
+DO_C = {"": 1, "c": 1, "°c": 1, "do": 1, "doc": 1}
+CAU_HOI = [
+    {"khoa": "k", "nhan": "Vật liệu", "hoi": "Tấm tản nhiệt làm bằng gì?",
+     "ten_so": "hệ số dẫn nhiệt k", "don_vi": "W/m.K", "doi": {"": 1, "w/m.k": 1, "w/mk": 1},
+     "khoang": (1, 500),
+     "lua_chon": [("Nhôm", 200, ["al"]), ("Đồng", 400, ["cu"]), ("Thép", 50, ["sat"])],
+     "giai_thich": "Vật liệu quyết định nhiệt lan trong tấm nhanh hay chậm. Đồng dẫn nhiệt tốt nhất,"
+                   " thép kém nhất. Tản nhiệt CPU thường làm bằng nhôm."},
+    {"khoa": "h", "nhan": "Làm mát", "hoi": "Tản nhiệt được làm mát thế nào?",
+     "ten_so": "hệ số toả nhiệt h", "don_vi": "W/m².K", "doi": {"": 1, "w/m2.k": 1, "w/m².k": 1},
+     "khoang": (1, 2000),
+     "lua_chon": [("Không quạt", 10, ["khong"]), ("Quạt thường", 100, ["quat", "thuong"]),
+                  ("Quạt mạnh", 250, ["manh"])],
+     "giai_thich": "Quạt thổi càng mạnh thì tấm mất nhiệt ra không khí càng nhanh. Không có quạt,"
+                   " nhiệt chỉ thoát nhờ không khí tự lưu thông nên rất chậm."},
+    {"khoa": "T_inf", "nhan": "Nhiệt độ phòng", "hoi": "Phòng đặt máy nóng hay lạnh?",
+     "ten_so": "nhiệt độ phòng", "don_vi": "°C", "doi": DO_C, "khoang": (0, 50),
+     "lua_chon": [("Phòng máy lạnh", 20, ["lanh", "may lanh"]), ("Bình thường", 25, ["thuong"]),
+                  ("Trời nóng", 35, ["nong"])],
+     "giai_thich": "Nhiệt độ không khí quanh máy. Ba cạnh tấm xa CPU được coi là bằng nhiệt độ này."},
+    {"khoa": "T_CPU", "nhan": "Nhiệt độ CPU", "hoi": "CPU đang chạy nặng cỡ nào?",
+     "ten_so": "nhiệt độ CPU", "don_vi": "°C", "doi": DO_C, "khoang": (1, 150),
+     "lua_chon": [("Máy rảnh", 45, ["ranh"]), ("Tải nặng", 80, ["nang", "game"]),
+                  ("Quá tải", 95, ["qua tai"])],
+     "giai_thich": "Nhiệt độ của cạnh tấm áp vào CPU. Máy để không khoảng 40-50°C, chơi game hay"
+                   " tính toán nặng khoảng 80°C, gần 100°C là CPU sắp tự giảm tốc."},
+    {"khoa": "L", "nhan": "Cạnh tấm", "hoi": "Tấm tản nhiệt to cỡ nào?",
+     "ten_so": "cạnh tấm", "don_vi": "cm", "doi": {"": 0.01, "cm": 0.01, "mm": 0.001, "m": 1},
+     "khoang": (1, 50),
+     "lua_chon": [("Nhỏ", 5, ["be"]), ("Vừa", 10, ["trung binh"]), ("Lớn", 15, ["to"])],
+     "giai_thich": "Tấm hình vuông, đây là độ dài một cạnh. Tản nhiệt CPU máy bàn thường 8-12 cm."},
+    {"khoa": "t", "nhan": "Độ dày", "hoi": "Tấm dày hay mỏng?",
+     "ten_so": "độ dày", "don_vi": "mm", "doi": {"": 0.001, "mm": 0.001, "cm": 0.01, "m": 1},
+     "khoang": (0.1, 10),
+     "lua_chon": [("Mỏng", 0.5, []), ("Vừa", 1, ["trung binh"]), ("Dày", 2, [])],
+     "giai_thich": "Tấm càng dày thì nhiệt càng dễ lan xa khỏi CPU trước khi thoát ra không khí."},
+    {"khoa": "N", "nhan": "Lưới tính", "hoi": "Muốn tính chi tiết đến mức nào?",
+     "ten_so": "số điểm lưới mỗi chiều N", "don_vi": "điểm", "doi": {"": 1, "diem": 1},
+     "khoang": (5, 40), "so_nguyen": True,
+     "lua_chon": [("Thô", 10, ["nhanh"]), ("Vừa", 20, ["trung binh"]), ("Mịn", 40, ["chi tiet", "cham"])],
+     "giai_thich": "Chương trình chia tấm thành lưới N x N điểm và tính nhiệt độ tại mỗi điểm."
+                   " Lưới càng mịn thì kết quả càng sát thực tế nhưng chạy càng lâu (mịn mất cỡ 1 phút)."},
+]
+
+TINH_HUONG = [
+    ("Máy văn phòng: tản nhôm không quạt, CPU 45°C", ["van phong"], {"k": 200, "h": 10, "T_CPU": 45}),
+    ("Máy chơi game: tản nhôm có quạt, CPU 80°C (mặc định)", ["game"], {}),
+    ("Máy trạm: tản đồng quạt mạnh, CPU 95°C, phòng 35°C", ["may tram"],
+     {"k": 400, "h": 250, "T_CPU": 95, "T_inf": 35}),
+]
+
+
+def hoi(loi_nhac):
+    """Đọc một dòng; khi không có bàn phím (chạy tự động) thì coi như bấm Enter."""
+    try:
+        return input(loi_nhac).strip()
+    except EOFError:
+        return ""
+
+
+def bo_dau(chuoi):
+    """Chữ thường, bỏ dấu tiếng Việt, gộp khoảng trắng: ' Đồng ' -> 'dong'."""
+    chuoi = unicodedata.normalize("NFD", chuoi.lower()).replace("đ", "d")
+    chuoi = "".join(ch for ch in chuoi if unicodedata.category(ch) != "Mn")
+    return " ".join(chuoi.split())
+
+
+def ten_lua_chon(cau, gia_tri):
+    """Tên lựa chọn có sẵn ứng với giá trị (đơn vị THONG_SO), None nếu là giá trị tự nhập."""
+    so = gia_tri / cau["doi"][""]
+    return next((ten for ten, v, _ in cau["lua_chon"] if np.isclose(v, so)), None)
+
+
+def hoi_mot_cau(cau, gia_tri):
+    he_so = cau["doi"][""]
+    print(f"\n  {cau['hoi']}")
+    for chu, (ten, so, _) in zip("abc", cau["lua_chon"]):
+        print(f"     {chu}) {ten:<16}({cau['ten_so']} = {so:g} {cau['don_vi']})")
+    print(f"     Hoặc gõ thẳng {cau['ten_so']} theo {cau['don_vi']}."
+          f"  Enter = giữ {gia_tri / he_so:g} {cau['don_vi']},  ? = giải thích")
+    while True:
+        tra_loi = bo_dau(hoi("     > "))
+        if tra_loi == "":
+            return gia_tri
+        if tra_loi == "?":
+            print(f"     {cau['giai_thich']}")
+            continue
+        for chu, (ten, so, bi_danh) in zip("abc", cau["lua_chon"]):
+            if tra_loi in [chu, bo_dau(ten)] + bi_danh:
+                print(f"     -> {ten}: {cau['ten_so']} = {so:g} {cau['don_vi']}")
+                return so * he_so
+        khop = re.fullmatch(r"([+-]?\d+(?:[.,]\d+)?)\s*(.*)", tra_loi)
+        if khop is None:
+            print("     Chưa hiểu câu trả lời. Gõ a, b, c, tên lựa chọn, một con số, hoặc ? để xem giải thích.")
+            continue
+        don_vi = khop.group(2).replace(" ", "")
+        if don_vi not in cau["doi"]:
+            print(f"     Không nhận ra đơn vị '{khop.group(2)}'. Dùng: "
+                  + ", ".join(dv for dv in cau["doi"] if dv) + " (hoặc bỏ trống = " + cau["don_vi"] + ")")
+            continue
+        so = float(khop.group(1).replace(",", ".")) * cau["doi"][don_vi] / he_so   # theo đơn vị hiển thị
+        thap, cao = cau["khoang"]
+        if not thap <= so <= cao:
+            print(f"     {so:g} {cau['don_vi']} nằm ngoài khoảng hợp lý {thap:g} - {cao:g} {cau['don_vi']}."
+                  " Nhập lại.")
+            continue
+        if cau.get("so_nguyen"):
+            if so != int(so):
+                print("     Cần một số nguyên. Nhập lại.")
+                continue
+            so = int(so)
+        print(f"     -> {cau['ten_so']} = {so:g} {cau['don_vi']}")
+        return so * he_so
+
+
+def hoi_tung_cau(ts):
+    for cau in CAU_HOI:
+        ts[cau["khoa"]] = hoi_mot_cau(cau, ts[cau["khoa"]])
+        while cau["khoa"] == "T_CPU" and ts["T_CPU"] <= ts["T_inf"]:
+            print(f"     CPU phải nóng hơn phòng ({ts['T_inf']:g}°C) thì mới có nhiệt cần tản. Chọn lại.")
+            ts["T_CPU"] = hoi_mot_cau(cau, ts["T_CPU"])
+    return ts
+
+
+def chon_tinh_huong(ts):
+    print("\n  Chọn tình huống (gõ a, b, c hoặc tên; Enter = b):")
+    for chu, (mo_ta, _, _) in zip("abc", TINH_HUONG):
+        print(f"     {chu}) {mo_ta}")
+    while True:
+        tra_loi = bo_dau(hoi("     > ")) or "b"
+        for chu, (mo_ta, bi_danh, thay_doi) in zip("abc", TINH_HUONG):
+            if tra_loi == chu or tra_loi in bi_danh:
+                print(f"     -> {mo_ta}")
+                ts.update(thay_doi)
+                return ts
+        print("     Chưa hiểu câu trả lời. Gõ a, b hoặc c.")
+
+
+def in_tom_tat(ts):
+    print("\n  Thông số sẽ dùng:")
+    for cau in CAU_HOI:
+        so = ts[cau["khoa"]] / cau["doi"][""]
+        ten = ten_lua_chon(cau, ts[cau["khoa"]])
+        print(f"     {cau['nhan']:<16}: {so:g} {cau['don_vi']}" + (f"  ({ten})" if ten else ""))
+
+
 def nhap_thong_so():
     ts = dict(THONG_SO)
-    print("Nhập thông số (Enter để giữ giá trị mặc định):")
-    for ten, mo_ta, kieu in [("N", "Số điểm lưới mỗi chiều", int),
-                             ("T_CPU", "Nhiệt độ CPU (°C)", float),
-                             ("h", "Hệ số toả nhiệt của quạt (W/m².K)", float)]:
-        try:
-            chuoi = input(f"  {mo_ta} [{ts[ten]}]: ").strip()
-        except EOFError:
-            chuoi = ""
-        if chuoi:
-            ts[ten] = kieu(chuoi)
-    return ts
+    print("Chọn cách nhập thông số:")
+    print("  1) Chạy ngay với thông số mặc định      (Enter)")
+    print("  2) Chọn nhanh một tình huống mẫu        (không cần biết số liệu)")
+    print("  3) Trả lời từng câu hỏi                 (chọn a/b/c, gõ tên, hoặc gõ số kèm đơn vị)")
+    while True:
+        cach = hoi("  > ") or "1"
+        if cach in ("1", "2", "3"):
+            break
+        print("  Gõ 1, 2 hoặc 3 (hoặc Enter để chạy với thông số mặc định).")
+    if cach == "1":
+        return ts
+    while True:
+        ts = chon_tinh_huong(ts) if cach == "2" else hoi_tung_cau(ts)
+        in_tom_tat(ts)
+        if bo_dau(hoi("\n  Enter = bắt đầu tính,  s = sửa lại từng câu: ")) != "s":
+            return ts
+        cach = "3"
 
 
 def toa_do_nut(ts, N):
@@ -319,8 +483,10 @@ def buoc_1(ts):
     tieu_de("BƯỚC 1 - LẬP MÔ HÌNH VÀ TÍNH CHUẨN CỦA MA TRẬN A  (mục 3.3, 4.1)")
     N = ts["N"]
     A, b, c = lap_he(ts)
-    print(f"  Tấm nhôm {ts['L'] * 100:g} x {ts['L'] * 100:g} cm, dày {ts['t'] * 1000:g} mm,"
-          f" T_CPU = {ts['T_CPU']}°C, T_phòng = {ts['T_inf']}°C, h = {ts['h']} W/m².K")
+    vat_lieu = ten_lua_chon(CAU_HOI[0], ts["k"])
+    print(f"  Tấm {vat_lieu.lower() if vat_lieu else 'vật liệu'} {ts['L'] * 100:g} x {ts['L'] * 100:g} cm,"
+          f" dày {ts['t'] * 1000:g} mm, k = {ts['k']:g} W/m.K, T_CPU = {ts['T_CPU']:g}°C,"
+          f" T_phòng = {ts['T_inf']:g}°C, h = {ts['h']:g} W/m².K")
     print(f"  m² = 2h/(k.t) = {he_so_m2(ts):g} 1/m²,  lưới {N}x{N} -> A cỡ {N * N}x{N * N},"
           f"  c = m².dx² = {c:.5f}")
 
@@ -483,8 +649,75 @@ def buoc_4(ts):
 
 
 # =====================================================================================
+def ve_de_bai(ts):
+    """Hình 0: sơ đồ đề bài - tấm nhìn từ trên xuống và nhìn ngang."""
+    L = ts["L"] * 100
+    vat_lieu = ten_lua_chon(CAU_HOI[0], ts["k"]) or "kim loại"
+    nong, lanh, tam = MAU["cam"], MAU["xanh"], "#d9d5cc"
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5.4), gridspec_kw={"width_ratios": [1, 1.3]})
+    for ax in (ax1, ax2):
+        ax.set_aspect("equal")
+        ax.axis("off")
+
+    # (a) Nhìn từ trên xuống: cạnh dưới áp vào CPU, ba cạnh kia ở nhiệt độ phòng
+    ax1.add_patch(plt.Rectangle((0, 0), L, L, facecolor=tam, edgecolor="none"))
+    g = np.linspace(0, L, 10)[1:-1]
+    X, Y = np.meshgrid(g, g)
+    ax1.plot(X.ravel(), Y.ravel(), "o", color=MAU["chu_phu"], ms=3)
+    ax1.text(L / 2, L / 2, "Nhiệt độ tại mỗi\nđiểm lưới = ?", ha="center", va="center", fontsize=12,
+             color=MAU["chu"], bbox=dict(boxstyle="round,pad=0.4", fc="white", ec=MAU["truc"]))
+    ax1.plot([0, L], [0, 0], color=nong, lw=6, solid_capstyle="butt")
+    ax1.plot([0, 0, L, L], [0, L, L, 0], color=lanh, lw=4)
+    ax1.add_patch(plt.Rectangle((0, -0.16 * L), L, 0.16 * L, facecolor="#3a3936", edgecolor="none"))
+    ax1.text(L / 2, -0.08 * L, f"CPU  {ts['T_CPU']:g}°C", ha="center", va="center", color="white",
+             fontsize=12, fontweight="bold")
+    ax1.text(L / 2, 0.05 * L, f"cạnh dưới: {ts['T_CPU']:g}°C", ha="center", va="bottom", color=nong, fontsize=10)
+    ax1.text(L / 2, 0.95 * L, f"{ts['T_inf']:g}°C (nhiệt độ phòng)", ha="center", va="top", color=lanh, fontsize=10)
+    for x, goc in [(0.05 * L, 90), (0.95 * L, -90)]:
+        ax1.text(x, L / 2, f"{ts['T_inf']:g}°C", ha="center", va="center", rotation=goc, color=lanh, fontsize=10)
+    ax1.annotate("", (0, 1.07 * L), (L, 1.07 * L), arrowprops=dict(arrowstyle="<->", color=MAU["chu_phu"]))
+    ax1.text(L / 2, 1.09 * L, f"{L:g} cm", ha="center", va="bottom", color=MAU["chu_phu"])
+    ax1.annotate("", (-0.07 * L, 0), (-0.07 * L, L), arrowprops=dict(arrowstyle="<->", color=MAU["chu_phu"]))
+    ax1.text(-0.09 * L, L / 2, f"{L:g} cm", ha="right", va="center", rotation=90, color=MAU["chu_phu"])
+    ax1.set_xlim(-0.2 * L, 1.05 * L)
+    ax1.set_ylim(-0.2 * L, 1.2 * L)
+    ax1.set_title(f"(a) Nhìn từ trên xuống: tấm {vat_lieu.lower()} vuông")
+
+    # (b) Nhìn ngang: nhiệt lan dọc tấm (k) và thoát ra hai mặt nhờ quạt (h); độ dày vẽ phóng to
+    ax2.add_patch(plt.Rectangle((-1.6, -1.1), 1.6, 2.8, facecolor="#3a3936", edgecolor="none"))
+    ax2.text(-0.8, 0.3, "CPU", ha="center", va="center", color="white", fontweight="bold", rotation=90)
+    ax2.add_patch(plt.Rectangle((0, 0), 10, 0.6, facecolor=tam, edgecolor=MAU["truc"]))
+    ax2.plot([0, 0], [0, 0.6], color=nong, lw=5)
+    ax2.plot([10, 10], [0, 0.6], color=lanh, lw=5)
+    ax2.annotate("", (9.3, 0.3), (0.4, 0.3), arrowprops=dict(arrowstyle="-|>", color=nong, lw=2))
+    for x in (2, 4, 6, 8):
+        ax2.annotate("", (x, 1.9), (x, 0.75), arrowprops=dict(arrowstyle="-|>", color=lanh, lw=1.8))
+        ax2.annotate("", (x, -1.3), (x, -0.15), arrowprops=dict(arrowstyle="-|>", color=lanh, lw=1.8))
+    ax2.text(5, 2.1, f"Quạt thổi hai mặt tấm: nhiệt thoát ra không khí ({ts['T_inf']:g}°C)\n"
+             f"hệ số toả nhiệt h = {ts['h']:g} W/m².K", ha="center", va="bottom", color=lanh, fontsize=10)
+    ax2.text(5, -1.5, f"Nhiệt từ CPU ({ts['T_CPU']:g}°C) lan dọc tấm\n"
+             f"hệ số dẫn nhiệt k = {ts['k']:g} W/m.K", ha="center", va="top", color=nong, fontsize=10)
+    ax2.text(10.3, 0.3, f"dày {ts['t'] * 1000:g} mm\n(vẽ phóng to)\nđầu xa: {ts['T_inf']:g}°C",
+             ha="left", va="center", color=MAU["chu_phu"], fontsize=9)
+    N = ts["N"]
+    ax2.text(-1.6, -3.6,
+             f"Biết:  tấm {vat_lieu.lower()} {L:g} x {L:g} cm, dày {ts['t'] * 1000:g} mm,"
+             f" k = {ts['k']:g} W/m.K, h = {ts['h']:g} W/m².K,\n"
+             f"         CPU {ts['T_CPU']:g}°C, phòng {ts['T_inf']:g}°C\n"
+             f"Tìm:  nhiệt độ tại {N} x {N} = {N * N} điểm lưới trên tấm\n"
+             f"  =>   hệ {N * N} phương trình  A·θ = b  (A cỡ {N * N} x {N * N})",
+             ha="left", va="top", color=MAU["chu"], fontsize=10.5, linespacing=1.6,
+             bbox=dict(boxstyle="round,pad=0.6", fc="white", ec=MAU["truc"]))
+    ax2.set_xlim(-2, 13.2)
+    ax2.set_ylim(-7.4, 3.2)
+    ax2.set_anchor("N")                        # đặt sát mép trên để hai tiêu đề thẳng hàng
+    ax2.set_title("(b) Nhìn ngang: nhiệt vào từ CPU, thoát ra hai mặt")
+    luu_hinh(fig, "hinh0_de_bai.png")
+
+
 def ve_hinh(ts, theta, bang_kappa, ket_qua_lap, kq4):
     cai_dat()
+    ve_de_bai(ts)
     N, L = ts["N"], ts["L"] * 100
 
     # Hình 1: bản đồ nhiệt tính được

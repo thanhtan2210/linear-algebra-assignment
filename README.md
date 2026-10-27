@@ -36,7 +36,7 @@ Hai file có cùng các phần và cùng tên hàm, nên dễ đối chiếu v�
 | 1 | Các chuẩn **tự cài đặt** | `chuan_1`, `chuan_vo_cung`, `chuan_frobenius`, `chuan_frobenius_vet`, `chuan_2`, `so_dieu_kien` |
 | 2 | Mô hình tấm tản nhiệt | `lap_he`, `tri_rieng_A`, `nghiem_giai_tich`, `ma_tran_lap`, `giai_lap` |
 | 3 | Cấu hình đồ thị | màu sắc, thang màu nhiệt, `luu_hinh` |
-| 4 | Chương trình chính | 4 bước và vẽ 5 hình |
+| 4 | Chương trình chính | nhập thông số (`nhap_thong_so`, `hoi_mot_cau`; MATLAB để ở Phần 5), 4 bước và vẽ 5 hình |
 
 Trong file Python các phần xếp theo thứ tự 1 → 4 từ trên xuống. Trong file MATLAB, phần chạy chính nằm ở đầu file còn các hàm nằm ở cuối, vì MATLAB bắt buộc hàm cục bộ phải đặt sau phần lệnh của script (cần R2016b trở lên).
 
@@ -53,11 +53,31 @@ python phan_tich_tan_nhiet.py
 
 **MATLAB** (R2020b trở lên, không cần toolbox): chọn thư mục `matlab` làm Current Folder rồi gõ `phan_tich_tan_nhiet` trong Command Window.
 
-Khi chạy, chương trình hỏi 3 thông số: số điểm lưới N, nhiệt độ CPU và hệ số toả nhiệt của quạt. Nhấn Enter để dùng giá trị mặc định (20, 80°C, 100 W/m²K). Toàn bộ kết quả dưới đây ứng với giá trị mặc định.
+Khi chạy, chương trình cho chọn một trong 3 cách nhập thông số:
+
+1. **Mặc định** (bấm Enter): nhôm, quạt thường, CPU 80°C, phòng 25°C, tấm 10 cm dày 1 mm, lưới 20 × 20.
+2. **Tình huống mẫu**: máy văn phòng (không quạt), máy chơi game (mặc định), máy trạm (đồng, quạt mạnh).
+3. **Từng câu hỏi**: 7 câu về vật liệu (k), làm mát (h), nhiệt độ phòng, nhiệt độ CPU, cạnh tấm (L), độ dày (t) và lưới (N). Mỗi câu chấp nhận nhiều kiểu trả lời:
+
+| Gõ | Ý nghĩa |
+|---|---|
+| Enter | Giữ giá trị hiện tại |
+| `a` / `b` / `c` | Chọn lựa chọn có sẵn |
+| Tên lựa chọn (`đồng`, `dong`, `quat manh`) | Như chọn chữ cái, có dấu hay không dấu đều được |
+| Con số, có thể kèm đơn vị (`12 cm`, `120mm`, `0,8`, `90 độ`) | Tự nhập giá trị |
+| `?` | Giải thích câu hỏi |
+
+Câu trả lời không hiểu được, sai đơn vị, nằm ngoài khoảng hợp lý (ví dụ N ngoài 5–40) hoặc CPU không nóng hơn phòng đều bị báo lỗi và hỏi lại. Trả lời xong, chương trình in bảng tóm tắt và cho sửa lại trước khi tính. Khi không có bàn phím (chạy tự động, `matlab -batch`), chương trình dùng thông số mặc định.
+
+Toàn bộ kết quả dưới đây ứng với thông số mặc định. Lưu ý: k, h, L, t, N làm thay đổi ma trận A, nên chuẩn và κ thay đổi; còn T_CPU và T_phòng chỉ đổi vế phải b, nên κ giữ nguyên.
 
 ---
 
 ## Mô hình toán học
+
+![Sơ đồ đề bài](ket_qua/hinh0_de_bai.png)
+
+*Hình 0 (`hinh0_de_bai.png`, bản MATLAB `hinh0_de_bai_matlab.png`): sơ đồ đề bài. Hình vẽ lại theo thông số người dùng nhập.*
 
 Gọi θ = T − T_phòng là độ tăng nhiệt so với nhiệt độ phòng. Cân bằng nhiệt trên tấm mỏng cho phương trình
 

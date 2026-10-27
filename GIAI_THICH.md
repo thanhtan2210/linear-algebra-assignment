@@ -14,6 +14,10 @@ Trong bài này, tấm tản nhiệt là một miếng nhôm vuông, mỗi cạn
 - **Ba cạnh còn lại** gắn vào khung máy, ở nhiệt độ phòng **25°C**.
 - **Quạt** thổi lên hai mặt tấm, mang bớt nhiệt đi.
 
+![Sơ đồ đề bài: tấm tản nhiệt nhìn từ trên xuống và nhìn ngang](ket_qua/hinh0_de_bai.png)
+
+*Hình trái: nhìn tấm từ trên xuống. Cạnh cam áp vào CPU, ba cạnh xanh ở nhiệt độ phòng, các chấm đen là những điểm cần tìm nhiệt độ. Hình phải: nhìn ngang tấm. Nhiệt đi vào từ CPU, lan dọc tấm (mũi tên cam), rồi bị quạt thổi thoát ra hai mặt (mũi tên xanh).*
+
 Người thiết kế muốn biết: **mỗi điểm trên tấm nóng bao nhiêu độ?** Biết được điều đó thì mới chọn được tấm đủ lớn, quạt đủ mạnh.
 
 ![Bản đồ nhiệt độ của tấm](ket_qua/hinh1_ban_do_nhiet.png)
@@ -136,7 +140,44 @@ Giữ thêm lớp không làm ảnh tốt hơn mà ngược lại, vì các lớ
 
 ---
 
-## 9. Từ điển nhỏ
+## 9. Tự thử với chiếc máy của bạn
+
+Mọi con số ở trên ứng với một chiếc máy "mẫu": tấm nhôm 10 cm, có quạt, CPU 80°C, phòng 25°C. Khi chạy chương trình, bạn có thể đổi chiếc máy đó thành chiếc máy của mình. Chương trình đưa ra 3 cách, chọn cách nào tùy bạn biết nhiều hay ít:
+
+| Cách | Dành cho ai | Phải làm gì |
+|---|---|---|
+| 1. Mặc định | Chỉ muốn xem kết quả | Bấm Enter |
+| 2. Tình huống mẫu | Không biết số liệu gì cả | Chọn một trong ba máy: văn phòng, chơi game, máy trạm |
+| 3. Từng câu hỏi | Muốn tự chỉnh | Trả lời 7 câu hỏi về chiếc máy |
+
+Ở cách 3, mỗi câu hỏi đều có sẵn 3 lựa chọn a, b, c, nên bạn **không cần biết con số nào**. Ví dụ với câu "Tấm tản nhiệt làm bằng gì?", các câu trả lời sau đều được hiểu:
+
+| Bạn gõ | Chương trình hiểu |
+|---|---|
+| (bấm Enter) | Giữ như cũ (nhôm) |
+| `b` | Lựa chọn b: đồng |
+| `Đồng` hoặc `dong` | Đồng (gõ có dấu hay không dấu đều được) |
+| `380` | Tự nhập hệ số dẫn nhiệt 380 W/m.K |
+| `?` | Giải thích câu hỏi này nghĩa là gì |
+
+Với các câu có đơn vị, bạn được gõ kèm đơn vị và dùng dấu phẩy: `12 cm`, `120 mm`, `0,8`, `90 độ` đều được. Nếu gõ điều chương trình không hiểu, hoặc một giá trị vô lý (tấm dài 2 km, CPU nguội hơn phòng), chương trình sẽ nói rõ lỗi và hỏi lại chứ không bị dừng. Trả lời xong, chương trình in bảng tóm tắt để bạn kiểm tra trước khi tính. Bảng này cũng cho bạn sửa lại.
+
+Bảy câu hỏi nằm trong hai nhóm, và đây là điểm thú vị nhất khi thử:
+
+- **Câu hỏi về chiếc tấm** (làm bằng gì, có quạt không, to hay nhỏ, dày hay mỏng, tính chi tiết đến đâu) làm **thay đổi chính bảng số A**. Vì vậy chuẩn và số điều kiện κ cũng thay đổi theo.
+- **Câu hỏi về nhiệt độ** (CPU nóng bao nhiêu, phòng nóng bao nhiêu) chỉ thay đổi **cột vế phải b**, còn bảng A giữ nguyên. Vì vậy κ **không đổi**: CPU 50°C hay 95°C thì κ vẫn là 118.45. Đây là bằng chứng rõ nhất rằng κ là tính chất của **bài toán**, không phụ thuộc số liệu đưa vào.
+
+Vài kết quả đã chạy thử:
+
+| Chiếc máy | κ₂ | Nhận xét |
+|---|---|---|
+| Mẫu: nhôm, có quạt, lưới 20 × 20 | 118.45 | Như các mục trên |
+| Máy trạm: đồng, quạt mạnh, CPU 95°C | 109.33 | κ đổi vì vật liệu và quạt đổi, không phải vì nhiệt độ |
+| Nhôm, không quạt, lưới mịn 40 × 40 | 647.83 | Lưới mịn hơn và quạt yếu hơn làm bài toán nhạy hơn; phép lặp cần 2096 vòng thay vì 313 |
+
+---
+
+## 10. Từ điển nhỏ
 
 | Thuật ngữ | Nghĩa đơn giản |
 |---|---|
